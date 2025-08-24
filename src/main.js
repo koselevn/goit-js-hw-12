@@ -8,67 +8,112 @@ import {
 } from './js/render-functions.js';
 
 const form = document.querySelector('.form');
+const loadMoreBtn = document.querySelector('#load-more');
 
-// 🔒 сховати на старті (на випадок якщо стилі/markup ще не підвантажені)
 hideLoadMoreButton();
 
 let currentQuery = '';
 let currentPage = 1;
-const PER_PAGE = 15; // має збігатися з тим, що в pixabay-api.js
+const PER_PAGE = 15;
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
 
   currentQuery = event.target.elements['search-text'].value.trim();
   currentPage = 1;
+
   if (!currentQuery) {
-    iziToast.warning({ title: 'Warning', message: 'Please enter a search term!', position: 'topRight' });
+    iziToast.warning({
+      title: 'Warning',
+      message: 'Please enter a search term!',
+      position: 'topRight'
+    });
     return;
   }
 
   try {
     showLoader();
-    hideLoadMoreButton(); // перед запитом завжди ховаємо
+    hideLoadMoreButton(); 
+    clearGallery();
 
     const result = await getImagesByQuery(currentQuery, currentPage);
 
     if (typeof result === 'string') {
       iziToast.error({ title: 'Error', message: result, position: 'topRight' });
-      clearGallery();
       return;
     }
 
-    clearGallery();
     createGallery(result);
-    iziToast.success({ title: 'Success', message: `Found ${result.length} images`, position: 'topRight' });
+    iziToast.success({
+      title: 'Success',
+      message: `Found ${result.length} images in this batch`,
+      position: 'topRight'
+    });
 
-    // показуємо кнопку тільки якщо є ще сторінки (прийшло рівно PER_PAGE)
     if (result.length === PER_PAGE) {
       showLoadMoreButton();
+    } else {
+      iziToast.info({
+        title: 'Info',
+        message: "You've reached the end of search results.",
+        position: 'topRight'
+      });
     }
   } catch (e) {
-    iziToast.error({ title: 'Error', message: 'Something went wrong. Please try again later.', position: 'topRight' });
+    iziToast.error({
+      title: 'Error',
+      message: 'Something went wrong. Please try again later.',
+      position: 'topRight'
+    });
     console.error(e);
   } finally {
     hideLoader();
   }
 });
 
-// Обробник на "Load more" (якщо ще не додав)
-document.querySelector('#load-more').addEventListener('click', async () => {
+loadMoreBtn.addEventListener('click', async () => {
   currentPage += 1;
   try {
     showLoader();
+    hideLoadMoreButton();
+
     const result = await getImagesByQuery(currentQuery, currentPage);
+
     if (typeof result === 'string' || result.length === 0) {
-      hideLoadMoreButton();
+      iziToast.info({
+        title: 'Info',
+        message: "No more images available.",
+        position: 'topRight'
+      });
       return;
     }
+
     createGallery(result);
-    // якщо прийшло менше PER_PAGE — більше сторінок немає
-    if (result.length < PER_PAGE) hideLoadMoreButton();
+
+    const { height: cardHeight } = document
+      .querySelector(".gallery")
+      .firstElementChild.getBoundingClientRect();
+
+    window.scrollBy({
+      top: cardHeight * 2,
+      behavior: "smooth",
+    });
+
+    if (result.length === PER_PAGE) {
+      showLoadMoreButton();
+    } else {
+      iziToast.info({
+        title: 'Info',
+        message: "You've reached the end of search results.",
+        position: 'topRight'
+      });
+    }
   } catch (e) {
-    iziToast.error({ title: 'Error', message: 'Failed to load more images.', position: 'topRight' });
+    iziToast.error({
+      title: 'Error',
+      message: 'Failed to load more images.',
+      position: 'topRight'
+    });
     console.error(e);
   } finally {
     hideLoader();
